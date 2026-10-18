@@ -6,6 +6,7 @@ pcall(function()
     setreadonly(mt, false)
     local oldIndex = mt.__index
     
+    -- Đánh lừa game: Khi anti-cheat kiểm tra sương mù hoặc bóng đổ, trả về giá trị giả lập hợp lệ
     mt.__index = newcclosure(function(self, k)
         if tostring(self) == "Lighting" then
             if k == "FogEnd" or k == "FogStart" then
@@ -19,10 +20,12 @@ pcall(function()
     setreadonly(mt, true)
 end)
 
+-- Chặn các luồng báo cáo lỗi (Error Logging Hook) để không gửi log lên máy chủ
 local oldScriptContext
 pcall(function()
     oldScriptContext = game:GetService("ScriptContext").Error
     game:GetService("ScriptContext").Error:Connect(function()
+        -- Hủy bỏ việc ghi nhận lỗi script client
     end)
 end)
 
@@ -32,7 +35,6 @@ end)
 local CoreGui = game:GetService("CoreGui")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
-local Players = game:GetService("Players")
 
 local parentGui = (gethui and gethui()) or CoreGui
 if parentGui:FindFirstChild("ForsakenFPSGui") then
@@ -172,7 +174,7 @@ RunService.RenderStepped:Connect(function()
 end)
 
 -- ==========================================
--- PHẦN 3: FIX LAG + XÓA CỎ RÁC + GIỮ MODEL SKIN
+-- PHẦN 3: FIX LAG CHUYÊN SÂU & LÀM PHẲNG MAP (AN TOÀN HITBOX)
 -- ==========================================
 local Lighting = game:GetService("Lighting")
 local Workspace = game:GetService("Workspace")
@@ -205,27 +207,12 @@ if Terrain then
         Terrain.WaterWaveSpeed = 0
         Terrain.WaterReflectance = 0
         Terrain.WaterTransparency = 0
-        Terrain.Decoration = false -- Tắt hoàn toàn cỏ mọc trên đất của Terrain
+        Terrain.Decoration = false
     end)
 end
 
 local function optimizeInstance(obj)
     pcall(function()
-        -- BỎ QUA HOÀN TOÀN NHÂN VẬT & SKIN
-        for _, player in ipairs(Players:GetPlayers()) do
-            if player.Character and obj:IsDescendantOf(player.Character) then
-                return
-            end
-        end
-
-        local nameLower = obj.Name:lower()
-
-        -- XÓA SẠCH CỎ VÀ CÁC CHI TIẾT THỰC VẬT RÁC
-        if nameLower:find("grass") or nameLower:find("plant") or nameLower:find("bush") or nameLower:find("flower") or nameLower:find("debris") or nameLower:find("leaf") then
-            obj:Destroy()
-            return
-        end
-
         if obj:IsA("BasePart") then
             obj.Material = Enum.Material.SmoothPlastic
             obj.Reflectance = 0
@@ -274,4 +261,4 @@ Workspace.DescendantAdded:Connect(function(obj)
     optimizeInstance(obj)
 end)
 
-print("Đã xóa sạch cỏ rác, làm phẳng map và giữ nguyên model skin!")
+print("Đã tải xong Script Fix Lag kèm Bypass Anti-Cheat!")
