@@ -35,6 +35,7 @@ end)
 local CoreGui = game:GetService("CoreGui")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
+local Players = game:GetService("Players")
 
 local parentGui = (gethui and gethui()) or CoreGui
 if parentGui:FindFirstChild("ForsakenFPSGui") then
@@ -174,7 +175,7 @@ RunService.RenderStepped:Connect(function()
 end)
 
 -- ==========================================
--- PHẦN 3: FIX LAG CHUYÊN SÂU & LÀM PHẲNG MAP (AN TOÀN HITBOX)
+-- PHẦN 3: FIX LAG CHUYÊN SÂU & LÀM PHẲNG MAP (BẢO VỆ MODEL SKIN)
 -- ==========================================
 local Lighting = game:GetService("Lighting")
 local Workspace = game:GetService("Workspace")
@@ -213,6 +214,13 @@ end
 
 local function optimizeInstance(obj)
     pcall(function()
+        -- BỎ QUA HOÀN TOÀN: Nếu vật thể thuộc về người chơi hoặc Killer (Model skin, quần áo, phụ kiện) thì né ra
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player.Character and obj:IsDescendantOf(player.Character) then
+                return
+            end
+        end
+
         if obj:IsA("BasePart") then
             obj.Material = Enum.Material.SmoothPlastic
             obj.Reflectance = 0
@@ -261,4 +269,4 @@ Workspace.DescendantAdded:Connect(function(obj)
     optimizeInstance(obj)
 end)
 
-print("Đã tải xong Script Fix Lag kèm Bypass Anti-Cheat!")
+print("Đã tải xong Script Fix Lag + Giữ nguyên Model Skin!")
