@@ -4,13 +4,12 @@ local UIS = game:GetService("UserInputService")
 local Players = game:GetService("Players")
 local Lighting = game:GetService("Lighting")
 local Workspace = game:GetService("Workspace")
-local Terrain = Workspace:FindFirstChildOfClass("Terrain")
 
 local player = Players.LocalPlayer
-local RENDER_DISTANCE = 100 -- Giảm thêm tầm nhìn xuống 100 studs để máy cực nhẹ
+local RENDER_DISTANCE = 100 -- Tầm nhìn 100 studs
 
 -- ==========================================
--- PHẦN 1: BYPASS & GUI FPS (Cực nhẹ)
+-- PHẦN 1: BYPASS & GUI FPS
 -- ==========================================
 pcall(function()
     local mt = getrawmetatable(game)
@@ -36,7 +35,6 @@ MainFrame.Size, MainFrame.Position = UDim2.new(0, 140, 0, 35), UDim2.new(0.02, 0
 MainFrame.BackgroundColor3, MainFrame.BackgroundTransparency = Color3.fromRGB(15, 15, 15), 0.3
 MainFrame.BorderSizePixel, MainFrame.Active = 0, true
 Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 6)
-Instance.new("UIStroke", MainFrame).Color = Color3.fromRGB(80, 80, 80)
 
 local UIScale = Instance.new("UIScale", MainFrame)
 local FPSLabel = Instance.new("TextLabel", MainFrame)
@@ -82,87 +80,41 @@ RunService.RenderStepped:Connect(function()
 end)
 
 -- ==========================================
--- PHẦN 2: TỐI ƯU HÓA CỰC ĐỘ (DIỆT TEXTURE, RÁC)
+-- PHẦN 2: DỌN RÁC THEO CHU KỲ (CỨU CPU)
 -- ==========================================
-pcall(function()
-    Lighting.GlobalShadows, Lighting.Brightness = false, 1
-    if Terrain then Terrain.WaterWaveSize, Terrain.WaterWaveSpeed, Terrain.WaterReflectance, Terrain.Decoration = 0, 0, 0, false end
-    sethiddenproperty(Lighting, "Technology", 2) -- Ép xuống đồ họa thấp nhất nếu có thể
-end)
+Lighting.GlobalShadows = false
 
-local mapParts = {}
-
--- Kiểm tra xem vật thể có phải của nhân vật/Skin không
+-- Hàm lọc nhân vật siêu tốc
 local function isCharacter(obj)
     if obj.Name == "Humanoid" or obj.Name == "HumanoidRootPart" or obj:IsA("Accessory") or obj:IsA("Clothing") or obj:IsA("Shirt") or obj:IsA("Pants") then return true end
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p.Character and obj:IsDescendantOf(p.Character) then return true end
-    end
+    if obj.Parent and obj.Parent:FindFirstChild("Humanoid") then return true end
     return false
 end
 
-local function brutalOptimize(obj)
-    pcall(function()
-        if isCharacter(obj) then return end -- BẢO VỆ NHÂN VẬT TUYỆT ĐỐI
-
-        -- Xóa cỏ, lá, rác vụn nhẹ
-        local name = obj.Name:lower()
-        if name:find("grass") or name:find("bush") or name:find("leaf") or name:find("debris") then obj:Destroy() return end
-
-        if obj:IsA("BasePart") then
-            obj.Material = Enum.Material.SmoothPlastic
-            obj.Reflectance, obj.CastShadow = 0, false
-            if obj:IsA("MeshPart") then obj.TextureID = "" end
-            
-            -- Đăng ký vào mảng tàng hình nếu là phần tử tĩnh của map
-            if obj.Anchored then
-                local oT = obj:GetAttribute("OrigTrans")
-                if not oT then oT = obj.Transparency obj:SetAttribute("OrigTrans", oT) end
-                table.insert(mapParts, { part = obj, origTrans = oT })
-            end
-
-        -- Hủy diệt Texture, Decal (Tranh ảnh, vân dán làm nặng RAM)
-        elseif obj:IsA("Decal") or obj:IsA("Texture") or obj:IsA("SurfaceAppearance") then
-            obj:Destroy()
-        
-        -- Hủy diệt mọi loại hiệu ứng
-        elseif obj:IsA("ParticleEmitter") or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") or obj:IsA("Explosion") then
-            obj.Enabled = false
-            obj:Destroy()
-            
-        -- Xóa sương mù, filter, ánh sáng thừa
-        elseif obj:IsA("PostEffect") or obj:IsA("BlurEffect") or obj:IsA("BloomEffect") or obj:IsA("SunRaysEffect") or obj:IsA("ColorCorrectionEffect") or obj:IsA("Atmosphere") or obj:IsA("Sky") then
-            obj:Destroy()
-        elseif obj:IsA("PointLight") or obj:IsA("SpotLight") or obj:IsA("SurfaceLight") then
-            obj.Enabled, obj.Shadows = false, false
-        end
-    end)
-end
-
--- Quét 1 lần toàn bộ Map
-for _, v in ipairs(Workspace:GetDescendants()) do brutalOptimize(v) end
-for _, v in ipairs(Lighting:GetChildren()) do brutalOptimize(v) end
-
--- Quét tự động vật thể sinh ra sau (Load map mới, Skill mới)
-Workspace.DescendantAdded:Connect(function(obj)
-    task.wait(0.05) -- Đợi xíu để load xong
-    if obj and obj.Parent then brutalOptimize(obj) end
-end)
-Lighting.ChildAdded:Connect(function(obj) task.wait(0.05) if obj and obj.Parent then brutalOptimize(obj) end end)
-
--- Quét dọn tàn dư ngầm mỗi 10 giây (Tránh rò rỉ bộ nhớ RAM)
+-- Vòng lặp dọn rác nhẹ nhàng: 3 giây dọn 1 lần (không làm giật máy khi load map)
 task.spawn(function()
-    while task.wait(10) do
-        for _, obj in ipairs(Workspace:GetDescendants()) do
-            if obj:IsA("ParticleEmitter") or obj:IsA("Fire") or obj:IsA("Explosion") then
-                pcall(function() obj:Destroy() end)
+    while task.wait(3) do
+        pcall(function()
+            for _, obj in ipairs(Workspace:GetDescendants()) do
+                if obj:IsA("ParticleEmitter") or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Explosion") then
+                    obj.Enabled = false
+                    obj:Destroy()
+                elseif (obj:IsA("Decal") or obj:IsA("Texture")) and not isCharacter(obj) then
+                    obj:Destroy()
+                end
             end
-        end
+            
+            for _, obj in ipairs(Lighting:GetChildren()) do
+                if obj:IsA("PostEffect") or obj:IsA("BlurEffect") or obj:IsA("BloomEffect") or obj:IsA("Atmosphere") or obj:IsA("Sky") then
+                    obj:Destroy()
+                end
+            end
+        end)
     end
 end)
 
 -- ==========================================
--- PHẦN 3: CULLING (TÀNG HÌNH Ở XA) - TIẾT KIỆM CPU
+-- PHẦN 3: TÀNG HÌNH THÔNG MINH (CHIA NHỎ TÍNH TOÁN)
 -- ==========================================
 pcall(function()
     Lighting.FogColor = Color3.fromRGB(12, 12, 12)
@@ -170,41 +122,68 @@ pcall(function()
     Lighting.FogEnd = RENDER_DISTANCE
 end)
 
--- Thu dọn mảng map khi đổi map
-task.spawn(function()
-    while task.wait(15) do
-        local newMapParts = {}
-        for _, data in ipairs(mapParts) do
-            if data.part and data.part.Parent then table.insert(newMapParts, data) end
+local mapParts = {}
+
+-- Cập nhật danh sách map 10 giây/lần
+local function refreshMapCache()
+    local newParts = {}
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if obj:IsA("BasePart") and obj.Anchored and not isCharacter(obj) then
+            -- Tối ưu chất liệu ngay khi đưa vào list
+            obj.Material = Enum.Material.SmoothPlastic
+            obj.CastShadow = false
+            
+            local oT = obj:GetAttribute("OrigTrans")
+            if not oT then 
+                oT = obj.Transparency 
+                obj:SetAttribute("OrigTrans", oT) 
+            end
+            table.insert(newParts, { part = obj, origTrans = oT })
         end
-        mapParts = newMapParts
+    end
+    mapParts = newParts
+end
+
+-- Chạy lần đầu
+refreshMapCache()
+
+-- Tự động cập nhật danh sách map nhàn hạ (10s/lần)
+task.spawn(function()
+    while task.wait(10) do
+        refreshMapCache()
     end
 end)
 
--- Giới hạn tầm nhìn (Chạy nhẹ nhàng 15 khung hình/giây thay vì 60fps để tiết kiệm CPU cho Tab A7)
-task.spawn(function()
-    while task.wait(0.06) do -- ~15 FPS vòng lặp (vừa đủ mượt mà cực nhẹ)
-        local totalParts = #mapParts
-        if totalParts > 0 then
-            local char = player.Character
-            local root = char and char:FindFirstChild("HumanoidRootPart")
-            if root then
-                local rootPos = root.Position
-                for i = 1, totalParts do
-                    local data = mapParts[i]
-                    local part = data.part
-                    if part and part.Parent then
-                        -- Tàng hình ở xa, hiện lại khi gần
-                        if (part.Position - rootPos).Magnitude > RENDER_DISTANCE then
-                            if part.Transparency ~= 1 then part.Transparency = 1 end
-                        else
-                            if part.Transparency ~= data.origTrans then part.Transparency = data.origTrans end
-                        end
-                    end
-                end
+-- Chia nhỏ việc kiểm tra khoảng cách: CHỈ 50 VẬT THỂ MỖI KHUNG HÌNH
+local currentIndex = 1
+local PARTS_PER_FRAME = 50 
+
+RunService.Heartbeat:Connect(function()
+    local totalParts = #mapParts
+    if totalParts == 0 then return end
+    
+    local char = player.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+    
+    local rootPos = root.Position
+    local endIdx = math.min(currentIndex + PARTS_PER_FRAME - 1, totalParts)
+    
+    for i = currentIndex, endIdx do
+        local data = mapParts[i]
+        local p = data.part
+        if p and p.Parent then
+            if (p.Position - rootPos).Magnitude > RENDER_DISTANCE then
+                if p.Transparency ~= 1 then p.Transparency = 1 end
+            else
+                if p.Transparency ~= data.origTrans then p.Transparency = data.origTrans end
             end
         end
     end
+    
+    -- Xoay vòng index
+    currentIndex = endIdx + 1
+    if currentIndex > totalParts then currentIndex = 1 end
 end)
 
-print("Đã tải chế độ Ultra Potato Max FPS - Bảo vệ 100% Skin & Hitbox!")
+print("Đã Fix CPU Load - Max FPS Tab A7 Lite!")
