@@ -6,10 +6,28 @@ local Lighting = game:GetService("Lighting")
 local Workspace = game:GetService("Workspace")
 
 local player = Players.LocalPlayer
-local RENDER_DISTANCE = 100 -- Tầm nhìn 100 studs
+local RENDER_DISTANCE = 90 -- Ép tầm nhìn xuống 90 để cứu FPS
 
 -- ==========================================
--- PHẦN 1: BYPASS & GUI FPS
+-- PHẦN 1: ÉP XUNG ENGINE & ĐỒ HỌA MỨC TỐI THIỂU
+-- ==========================================
+pcall(function()
+    -- Ép Setting của Roblox về mức thấp nhất bằng script
+    local userSettings = UserSettings():GetService("UserGameSettings")
+    userSettings.SavedQualityLevel = Enum.SavedQualitySetting.QualityLevel1
+    settings().Rendering.QualityLevel = 1
+    settings().Rendering.MeshPartDetailLevel = Enum.MeshPartDetailLevel.Level04 -- Lưới 3D vỡ hạt nhẹ nhất
+    
+    -- Tối ưu hóa tính toán vật lý (Chống Drop FPS khi Killer di chuyển)
+    Workspace.InterpolationThrottling = Enum.InterpolationThrottlingMode.Enabled
+    if sethiddenproperty then
+        sethiddenproperty(Lighting, "Technology", 2)
+        sethiddenproperty(Workspace, "StreamingEnabled", true)
+    end
+end)
+
+-- ==========================================
+-- PHẦN 2: GUI FPS & BYPASS
 -- ==========================================
 pcall(function()
     local mt = getrawmetatable(game)
@@ -54,6 +72,7 @@ end
 createBtn("-", -50, false)
 createBtn("+", -25, true)
 
+-- Kéo thả GUI
 local dragging, dragStart, startPos
 MainFrame.InputBegan:Connect(function(inp)
     if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
@@ -80,18 +99,17 @@ RunService.RenderStepped:Connect(function()
 end)
 
 -- ==========================================
--- PHẦN 2: DỌN RÁC THEO CHU KỲ (CỨU CPU)
+-- PHẦN 3: DIỆT RÁC & TẮT BÓNG ĐỔ NHÂN VẬT
 -- ==========================================
 Lighting.GlobalShadows = false
 
--- Hàm lọc nhân vật siêu tốc
 local function isCharacter(obj)
     if obj.Name == "Humanoid" or obj.Name == "HumanoidRootPart" or obj:IsA("Accessory") or obj:IsA("Clothing") or obj:IsA("Shirt") or obj:IsA("Pants") then return true end
     if obj.Parent and obj.Parent:FindFirstChild("Humanoid") then return true end
     return false
 end
 
--- Vòng lặp dọn rác nhẹ nhàng: 3 giây dọn 1 lần (không làm giật máy khi load map)
+-- Dọn rác 3 giây 1 lần + Tắt luôn bóng đổ của NGƯỜI CHƠI
 task.spawn(function()
     while task.wait(3) do
         pcall(function()
@@ -101,6 +119,9 @@ task.spawn(function()
                     obj:Destroy()
                 elseif (obj:IsA("Decal") or obj:IsA("Texture")) and not isCharacter(obj) then
                     obj:Destroy()
+                elseif obj:IsA("BasePart") then
+                    -- Tắt luôn bóng đổ của nhân vật (Skin vẫn đẹp nhưng không đổ bóng xuống đất)
+                    if obj.CastShadow then obj.CastShadow = false end
                 end
             end
             
@@ -114,22 +135,20 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- PHẦN 3: TÀNG HÌNH THÔNG MINH (CHIA NHỎ TÍNH TOÁN)
+-- PHẦN 4: TÀNG HÌNH Ở XA (CỰC NHẸ CHỐNG DROP)
 -- ==========================================
 pcall(function()
-    Lighting.FogColor = Color3.fromRGB(12, 12, 12)
+    Lighting.FogColor = Color3.fromRGB(10, 10, 10)
     Lighting.FogStart = RENDER_DISTANCE * 0.3
     Lighting.FogEnd = RENDER_DISTANCE
 end)
 
 local mapParts = {}
 
--- Cập nhật danh sách map 10 giây/lần
 local function refreshMapCache()
     local newParts = {}
     for _, obj in ipairs(Workspace:GetDescendants()) do
         if obj:IsA("BasePart") and obj.Anchored and not isCharacter(obj) then
-            -- Tối ưu chất liệu ngay khi đưa vào list
             obj.Material = Enum.Material.SmoothPlastic
             obj.CastShadow = false
             
@@ -144,19 +163,12 @@ local function refreshMapCache()
     mapParts = newParts
 end
 
--- Chạy lần đầu
 refreshMapCache()
+task.spawn(function() while task.wait(10) do refreshMapCache() end end)
 
--- Tự động cập nhật danh sách map nhàn hạ (10s/lần)
-task.spawn(function()
-    while task.wait(10) do
-        refreshMapCache()
-    end
-end)
-
--- Chia nhỏ việc kiểm tra khoảng cách: CHỈ 50 VẬT THỂ MỖI KHUNG HÌNH
+-- CHỈ 30 VẬT THỂ MỖI KHUNG HÌNH (Chống Drop FPS triệt để)
 local currentIndex = 1
-local PARTS_PER_FRAME = 50 
+local PARTS_PER_FRAME = 30 
 
 RunService.Heartbeat:Connect(function()
     local totalParts = #mapParts
@@ -181,9 +193,8 @@ RunService.Heartbeat:Connect(function()
         end
     end
     
-    -- Xoay vòng index
     currentIndex = endIdx + 1
     if currentIndex > totalParts then currentIndex = 1 end
 end)
 
-print("Đã Fix CPU Load - Max FPS Tab A7 Lite!")
+print("Đã tải: Can thiệp Engine Roblox - Mức độ họa siêu nhẹ!")
